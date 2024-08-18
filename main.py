@@ -3,7 +3,7 @@
 
 import json
 import re
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import networkx as nx
 
@@ -201,23 +201,25 @@ def construct_graph(file: Dict, relation_nodes: List) -> nx.DiGraph:
 
 def get_loop(graph: nx.DiGraph) -> List:
     try:
-        return list(nx.find_cycle(graph, orientation='original'))
+        loop = list(nx.find_cycle(graph, orientation='original'))
+        print(f"Loop: {loop}")
+        return loop
     except:
         return []
 
 
-def remove_loop_from_json(graph, loop: List, file: Dict) -> Dict:
-    must_remove_relationship = loop[-1]
+def remove_loop_from_json(graph, loop: List, file: Dict) -> Tuple[Dict, nx.DiGraph]:
+    must_remove_relationship: Tuple = loop[-1]
+    print(f"Removed relation: {must_remove_relationship}")
     
-    first_item = must_remove_relationship[0]
-    second_item = must_remove_relationship[1]
+    first_item: str = must_remove_relationship[0]
+    second_item: str = must_remove_relationship[1]
 
     # Delete reference_who
     first_item_path = find_python_path(first_item)
 
     first_item_remain = first_item_path.replace(f"{first_item_path}/", "")
     first_item_splitted_remain = first_item_remain.split("/")
-
     
     if len(first_item_splitted_remain) == 1:
         for item_id in range(len(file[first_item_path])):
@@ -233,7 +235,6 @@ def remove_loop_from_json(graph, loop: List, file: Dict) -> Dict:
 
     second_item_remain = second_item_path.replace(f"{second_item_path}/", "")
     second_item_splitted_remain = second_item_remain.split("/")
-
     
     if len(second_item_splitted_remain) == 1:
         for item_id in range(len(file[second_item_path])):
@@ -244,12 +245,23 @@ def remove_loop_from_json(graph, loop: List, file: Dict) -> Dict:
                     pass
                 break
     
+    # Delete edges
+    graph.remove_edge(first_item, second_item)
+    
+    return file, graph
+
+
+def remove_all_loops(graph, file: Dict) -> Dict:
+    contain_loop = True
+
+    while contain_loop:
+        loop = get_loop(graph)
+
+        if loop:
+            file, graph = remove_loop_from_json(graph, loop, file)
+        else:
+            contain_loop = False
     return file
-
-
-
-def remove_all_loops(graph, file):
-    pass
 
 
 if __name__ == "__main__":
@@ -266,3 +278,7 @@ if __name__ == "__main__":
     graph = construct_graph(file, relation_nodes)
 
     print(get_loop(graph))
+
+    file = remove_all_loops(graph, file)
+
+    print(json.dumps(file, indent=2))
