@@ -1,6 +1,7 @@
 # Should I cover who_reference cases?
 # Should list all posible cases
 
+import json
 import re
 from typing import Dict, List
 
@@ -15,7 +16,8 @@ example = {
             "code_end_line": 100,
             "reference_who": [
                 "a.py/A/method"
-            ]
+            ],
+            "who_reference": []
         },
         {
             "name": "method",
@@ -24,7 +26,8 @@ example = {
             "reference_who": [
                 "b.py/B",
                 "b.py/B/method",
-            ]
+            ],
+            "who_reference": []
         },
     ],
     "b.py": [
@@ -34,7 +37,8 @@ example = {
             "code_end_line": 100,
             "reference_who": [
                 "b.py/B/method"
-            ]
+            ],
+            "who_reference": []
         },
         {
             "name": "method",
@@ -43,7 +47,8 @@ example = {
             "reference_who": [
                 "c.py/C",
                 "c.py/C/method",
-            ]
+            ],
+            "who_reference": []
         },
     ],
     "c.py": [
@@ -53,7 +58,8 @@ example = {
             "code_end_line": 100,
             "reference_who": [
                 "c.py/C/method"
-            ]
+            ],
+            "who_reference": []
         },
         {
             "name": "method",
@@ -62,7 +68,8 @@ example = {
             "reference_who": [
                 "d.py/D",
                 "d.py/D/method",
-            ]
+            ],
+            "who_reference": []
         },
     ],
     "d.py": [
@@ -72,7 +79,8 @@ example = {
             "code_end_line": 100,
             "reference_who": [
                 "d.py/D/method"
-            ]
+            ],
+            "who_reference": []
         },
         {
             "name": "method",
@@ -81,13 +89,15 @@ example = {
             "reference_who": [
                 "b.py/B",
                 "b.py/B/method",
-            ]
+            ],
+            "who_reference": []
         },
     ],
 }
 
 
-
+def extract_who_reference(file: Dict) -> Dict:
+    pass
 
 
 def code_contain(item, other_item) -> bool:
@@ -110,9 +120,7 @@ def find_python_path(string: str) -> str:
         return ""
 
 
-def parse_node(file: Dict) -> List:
-    nodes = []
-    
+def add_father(file: Dict) -> Dict:
     for path in list(file):
         potential_father = None
         # Should find exactly father in law
@@ -126,6 +134,18 @@ def parse_node(file: Dict) -> List:
                 file[path][item_id].update({"father": potential_father["name"]})
             else:
                 file[path][item_id].update({"father": ""})
+    return file
+
+
+def add_path(file: Dict) -> Dict:
+    for path in list(file):
+        for item_id in range(len(file[path])):
+            file[path][item_id].update({"path": path})
+    return file
+
+
+def parse_relation_node(file: Dict) -> List:
+    nodes = []
 
     for path in list(file):
         for item in file[path]:
@@ -149,36 +169,100 @@ def parse_node(file: Dict) -> List:
     return nodes
 
 
-def construct_graph(node_list: List) -> nx.DiGraph:
+def construct_graph(file: Dict, relation_nodes: List) -> nx.DiGraph:
     graph = nx.DiGraph()
 
-    graph.add_edges_from(node_list)
+    # Add nodes
+    for path in list(file):
+        for item in file[path]:
+            if item['father']:
+                graph.add_node(f"{path}/{item['father']}/{item['name']}", attributes=item)
+            else:
+                graph.add_node(f"{path}/{item['name']}", attributes=item)
+    # Add edges
+    for relation_node in relation_nodes:
+        item_1 = relation_node[0]
+        item_2 = relation_node[1]
+
+        if item_1['father']:
+            node_1 = f"{item_1['path']}/{item_1['father']}/{item_1['name']}"
+        else:
+            node_1 = f"{item_1['path']}/{item_1['name']}"
+
+        if item_2['father']:
+            node_2 = f"{item_2['path']}/{item_2['father']}/{item_2['name']}"
+        else:
+            node_2 = f"{item_2['path']}/{item_2['name']}"
+
+        graph.add_edge(node_1, node_2)
 
     return graph
 
 
 def get_loop(graph: nx.DiGraph) -> List:
-    return list(nx.find_cycle(graph, orientation='original'))
+    try:
+        return list(nx.find_cycle(graph, orientation='original'))
+    except:
+        return []
 
 
-def remove_loop_from_json(loops: List, file) -> List:
-    must_remove_relationships = [loop[-1] for loop in loops]
+def remove_loop_from_json(graph, loop: List, file: Dict) -> Dict:
+    must_remove_relationship = loop[-1]
+    
+    first_item = must_remove_relationship[0]
+    second_item = must_remove_relationship[1]
 
-    for must_remove_relationship in must_remove_relationships:
-        try:
-            pass
+    # Delete reference_who
+    first_item_path = find_python_path(first_item)
 
-        except:
-            pass
+    first_item_remain = first_item_path.replace(f"{first_item_path}/", "")
+    first_item_splitted_remain = first_item_remain.split("/")
+
+    
+    if len(first_item_splitted_remain) == 1:
+        for item_id in range(len(file[first_item_path])):
+            if file[first_item_path][item_id]['name'] == first_item_splitted_remain[0]:
+                try:
+                    file[first_item_path][item_id]['reference_who'].remove(second_item)
+                except:
+                    pass
+                break
+    
+    # Delete who_reference
+    second_item_path = find_python_path(second_item)
+
+    second_item_remain = second_item_path.replace(f"{second_item_path}/", "")
+    second_item_splitted_remain = second_item_remain.split("/")
+
+    
+    if len(second_item_splitted_remain) == 1:
+        for item_id in range(len(file[second_item_path])):
+            if file[second_item_path][item_id]['name'] == second_item_splitted_remain[0]:
+                try:
+                    file[second_item_path][item_id]['who_reference'].remove(first_item)
+                except:
+                    pass
+                break
+    
+    return file
 
 
 
-
+def remove_all_loops(graph, file):
+    pass
 
 
 if __name__ == "__main__":
     file = example
 
-    print(parse_node(file))
+    file = add_path(file)
 
+    file = add_father(file)
 
+    relation_nodes = parse_relation_node(file)
+
+    print(json.dumps(relation_nodes, indent=2))
+
+    graph = construct_graph(file, relation_nodes)
+
+    print(get_loop(graph))
