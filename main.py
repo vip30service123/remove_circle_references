@@ -218,12 +218,22 @@ def remove_loop_from_json(graph, loop: List, file: Dict) -> Tuple[Dict, nx.DiGra
     # Delete reference_who
     first_item_path = find_python_path(first_item)
 
-    first_item_remain = first_item_path.replace(f"{first_item_path}/", "")
+    first_item_remain = first_item.replace(f"{first_item_path}/", "")
     first_item_splitted_remain = first_item_remain.split("/")
     
+    print(f"Item 1: {first_item} | {first_item_path} | {first_item_remain} | {first_item_splitted_remain}")
+
     if len(first_item_splitted_remain) == 1:
         for item_id in range(len(file[first_item_path])):
-            if file[first_item_path][item_id]['name'] == first_item_splitted_remain[0]:
+            if file[first_item_path][item_id]['name'] == first_item_splitted_remain[-1]:
+                try:
+                    file[first_item_path][item_id]['reference_who'].remove(second_item)
+                except:
+                    pass
+                break
+    else:
+        for item_id in range(len(file[first_item_path])):
+            if file[first_item_path][item_id]['name'] == first_item_splitted_remain[-1] and file[first_item_path][item_id]['father'] == first_item_splitted_remain[0]:
                 try:
                     file[first_item_path][item_id]['reference_who'].remove(second_item)
                 except:
@@ -233,12 +243,22 @@ def remove_loop_from_json(graph, loop: List, file: Dict) -> Tuple[Dict, nx.DiGra
     # Delete who_reference
     second_item_path = find_python_path(second_item)
 
-    second_item_remain = second_item_path.replace(f"{second_item_path}/", "")
+    second_item_remain = second_item.replace(f"{second_item_path}/", "")
     second_item_splitted_remain = second_item_remain.split("/")
     
+    print(f"Item 2: {second_item} | {second_item_path} | {second_item_remain} | {second_item_splitted_remain}")
+
     if len(second_item_splitted_remain) == 1:
         for item_id in range(len(file[second_item_path])):
-            if file[second_item_path][item_id]['name'] == second_item_splitted_remain[0]:
+            if file[second_item_path][item_id]['name'] == second_item_splitted_remain[-1]:
+                try:
+                    file[second_item_path][item_id]['who_reference'].remove(first_item)
+                except:
+                    pass
+                break
+    else:
+        for item_id in range(len(file[second_item_path])):
+            if file[second_item_path][item_id]['name'] == first_item_splitted_remain[-1] and file[second_item_path][item_id]['father'] == second_item_splitted_remain[0]:
                 try:
                     file[second_item_path][item_id]['who_reference'].remove(first_item)
                 except:
@@ -273,11 +293,9 @@ if __name__ == "__main__":
 
     relation_nodes = parse_relation_node(file)
 
-    print(json.dumps(relation_nodes, indent=2))
+    # print(json.dumps(relation_nodes, indent=2))
 
     graph = construct_graph(file, relation_nodes)
-
-    print(get_loop(graph))
 
     file = remove_all_loops(graph, file)
 
